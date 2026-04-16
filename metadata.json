@@ -1,0 +1,6 @@
+{
+  "name": "AgriSoil AI",
+  "description": "AI-Powered Soil Analysis and Crop Recommendation Platform for Smallholder Farmers. Get personalized crop suggestions, fertilizer schedules, and soil correction steps in your local language.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["AI Analysis", "Soil Health Monitoring", "Multi-language Support"]
+}
