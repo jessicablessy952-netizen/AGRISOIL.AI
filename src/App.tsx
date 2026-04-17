@@ -26,6 +26,7 @@ function HomePage() {
   const [isResourcesOpen, setIsResourcesOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [formUpdate, setFormUpdate] = useState<Partial<SoilData> | undefined>(undefined);
 
   const handleFormSubmit = async (data: SoilData) => {
     setIsLoading(true);
@@ -130,7 +131,11 @@ function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                 >
-                  <SoilForm onSubmit={handleFormSubmit} isLoading={isLoading} />
+                  <SoilForm 
+                    onSubmit={handleFormSubmit} 
+                    isLoading={isLoading} 
+                    externalData={formUpdate}
+                  />
                 </motion.div>
               ) : (
                 <motion.div
@@ -197,7 +202,7 @@ function HomePage() {
 
         {/* Agentic AI Automation Section */}
         <section className="mt-20 border-t border-olive-100 pt-20">
-          <AgenticAutomation />
+          <AgenticAutomation onSyncToForm={(data) => setFormUpdate(data)} />
         </section>
       </main>
 

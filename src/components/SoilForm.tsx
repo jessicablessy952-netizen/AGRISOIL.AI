@@ -14,10 +14,12 @@ import { extractSoilDataFromImage } from '@/lib/gemini';
 interface SoilFormProps {
   onSubmit: (data: SoilData) => void;
   isLoading: boolean;
+  externalData?: Partial<SoilData>;
 }
 
-export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
-  const { register, handleSubmit, setValue, watch } = useForm<SoilData>({
+export function SoilForm({ onSubmit, isLoading, externalData }: SoilFormProps) {
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<SoilData>({
+    mode: 'onChange',
     defaultValues: {
       ph: 6.5,
       n: 50,
@@ -29,6 +31,17 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
       waterAvailability: 'Irrigated'
     }
   });
+
+  React.useEffect(() => {
+    if (externalData) {
+      if (externalData.moisture !== undefined) setValue('moisture', externalData.moisture);
+      if (externalData.ph !== undefined) setValue('ph', externalData.ph);
+      if (externalData.n !== undefined) setValue('n', externalData.n);
+      if (externalData.p !== undefined) setValue('p', externalData.p);
+      if (externalData.k !== undefined) setValue('k', externalData.k);
+      if (externalData.location) setValue('location', externalData.location);
+    }
+  }, [externalData, setValue]);
 
   const language = watch('language');
   const season = watch('season');
@@ -53,18 +66,23 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
-        const extractedData = await extractSoilDataFromImage(base64);
-        
-        if (Object.keys(extractedData).length > 0) {
-          if (extractedData.ph) setValue('ph', extractedData.ph);
-          if (extractedData.n) setValue('n', extractedData.n);
-          if (extractedData.p) setValue('p', extractedData.p);
-          if (extractedData.k) setValue('k', extractedData.k);
-          if (extractedData.moisture) setValue('moisture', extractedData.moisture);
+        try {
+          const extractedData = await extractSoilDataFromImage(base64);
           
-          toast.success("Data extracted successfully!", { id: toastId });
-        } else {
-          toast.error("Could not find soil data in image. Please try a clearer photo.", { id: toastId });
+          if (Object.keys(extractedData).length > 0) {
+            if (extractedData.ph) setValue('ph', extractedData.ph);
+            if (extractedData.n) setValue('n', extractedData.n);
+            if (extractedData.p) setValue('p', extractedData.p);
+            if (extractedData.k) setValue('k', extractedData.k);
+            if (extractedData.moisture) setValue('moisture', extractedData.moisture);
+            
+            toast.success("Data extracted successfully!", { id: toastId });
+          } else {
+            toast.error("Could not find soil data in image. Please try a clearer photo.", { id: toastId });
+          }
+        } catch (err) {
+          console.error("Extraction error:", err);
+          toast.error("AI could not read this image. Make sure it's a soil report.", { id: toastId });
         }
         setIsScanning(false);
       };
@@ -76,7 +94,8 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
     }
   };
 
-  const getValidationStyle = (value: number, min: number, max: number, idealMin: number, idealMax: number) => {
+  const getValidationStyle = (value: number, min: number, max: number, idealMin: number, idealMax: number, fieldName: keyof SoilData) => {
+    if (errors[fieldName]) return "border-red-500 ring-1 ring-red-500 bg-red-50";
     if (value < min || value > max) return "border-red-500 focus:ring-red-500 bg-red-50/30";
     if (value < idealMin || value > idealMax) return "border-amber-400 focus:ring-amber-400 bg-amber-50/30";
     return "border-olive-200 focus:ring-olive-500 bg-white";
@@ -208,10 +227,11 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                   id="ph"
                   type="number"
                   step="0.1"
-                  {...register('ph', { required: true, min: 0, max: 14 })}
-                  className={cn("transition-colors", getValidationStyle(phValue, 0, 14, 6.0, 7.5))}
+                  {...register('ph', { required: "pH is required", min: { value: 0, message: "Min 0" }, max: { value: 14, message: "Max 14" } })}
+                  className={cn("transition-colors", getValidationStyle(phValue, 0, 14, 6.0, 7.5, 'ph'))}
                 />
-                {getValidationMessage(phValue, 0, 14, 6.0, 7.5, "pH") && (
+                {errors.ph && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.ph.message}</p>}
+                {!errors.ph && getValidationMessage(phValue, 0, 14, 6.0, 7.5, "pH") && (
                   <p className="text-[10px] font-medium text-amber-600 animate-in fade-in slide-in-from-top-1">
                     {getValidationMessage(phValue, 0, 14, 6.0, 7.5, "pH")}
                   </p>
@@ -225,10 +245,11 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                 <Input
                   id="n"
                   type="number"
-                  {...register('n', { required: true })}
-                  className={cn("transition-colors", getValidationStyle(nValue, 0, 1000, 280, 560))}
+                  {...register('n', { required: "Nitrogen is required", min: 0 })}
+                  className={cn("transition-colors", getValidationStyle(nValue, 0, 1000, 280, 560, 'n'))}
                 />
-                {getValidationMessage(nValue, 0, 1000, 280, 560, "Nitrogen") && (
+                {errors.n && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.n.message}</p>}
+                {!errors.n && getValidationMessage(nValue, 0, 1000, 280, 560, "Nitrogen") && (
                   <p className="text-[10px] font-medium text-amber-600 animate-in fade-in slide-in-from-top-1">
                     {getValidationMessage(nValue, 0, 1000, 280, 560, "Nitrogen")}
                   </p>
@@ -242,10 +263,11 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                 <Input
                   id="p"
                   type="number"
-                  {...register('p', { required: true })}
-                  className={cn("transition-colors", getValidationStyle(pValue, 0, 500, 10, 25))}
+                  {...register('p', { required: "Phosphorus is required", min: 0 })}
+                  className={cn("transition-colors", getValidationStyle(pValue, 0, 500, 10, 25, 'p'))}
                 />
-                {getValidationMessage(pValue, 0, 500, 10, 25, "Phosphorus") && (
+                {errors.p && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.p.message}</p>}
+                {!errors.p && getValidationMessage(pValue, 0, 500, 10, 25, "Phosphorus") && (
                   <p className="text-[10px] font-medium text-amber-600 animate-in fade-in slide-in-from-top-1">
                     {getValidationMessage(pValue, 0, 500, 10, 25, "Phosphorus")}
                   </p>
@@ -259,10 +281,11 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                 <Input
                   id="k"
                   type="number"
-                  {...register('k', { required: true })}
-                  className={cn("transition-colors", getValidationStyle(kValue, 0, 1000, 108, 280))}
+                  {...register('k', { required: "Potassium is required", min: 0 })}
+                  className={cn("transition-colors", getValidationStyle(kValue, 0, 1000, 108, 280, 'k'))}
                 />
-                {getValidationMessage(kValue, 0, 1000, 108, 280, "Potassium") && (
+                {errors.k && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.k.message}</p>}
+                {!errors.k && getValidationMessage(kValue, 0, 1000, 108, 280, "Potassium") && (
                   <p className="text-[10px] font-medium text-amber-600 animate-in fade-in slide-in-from-top-1">
                     {getValidationMessage(kValue, 0, 1000, 108, 280, "Potassium")}
                   </p>
@@ -276,10 +299,11 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                 <Input
                   id="moisture"
                   type="number"
-                  {...register('moisture', { required: true, min: 0, max: 100 })}
-                  className={cn("transition-colors", getValidationStyle(moistureValue, 0, 100, 15, 60))}
+                  {...register('moisture', { required: "Moisture is required", min: 0, max: 100 })}
+                  className={cn("transition-colors", getValidationStyle(moistureValue, 0, 100, 15, 60, 'moisture'))}
                 />
-                {getValidationMessage(moistureValue, 0, 100, 15, 60, "Moisture") && (
+                {errors.moisture && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.moisture.message}</p>}
+                {!errors.moisture && getValidationMessage(moistureValue, 0, 100, 15, 60, "Moisture") && (
                   <p className="text-[10px] font-medium text-amber-600 animate-in fade-in slide-in-from-top-1">
                     {getValidationMessage(moistureValue, 0, 100, 15, 60, "Moisture")}
                   </p>
@@ -311,9 +335,10 @@ export function SoilForm({ onSubmit, isLoading }: SoilFormProps) {
                 <Input
                   id="location"
                   placeholder="e.g. Nashik, Maharashtra"
-                  {...register('location', { required: true })}
-                  className="border-olive-200 focus:ring-olive-500"
+                  {...register('location', { required: "Location is required" })}
+                  className={cn("border-olive-200 focus:ring-olive-500", errors.location && "border-red-500 ring-1 ring-red-500 bg-red-50")}
                 />
+                {errors.location && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.location.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label className="text-olive-700 flex items-center gap-1">

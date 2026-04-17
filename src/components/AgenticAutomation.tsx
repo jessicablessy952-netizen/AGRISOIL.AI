@@ -1,24 +1,43 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Cpu, Droplets, Zap, Activity, MessageSquare, Power, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Cpu, Droplets, Zap, Activity, MessageSquare, Power, AlertTriangle, CheckCircle2, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { SoilData } from '@/types';
 
 interface AgentLog {
   id: string;
-  agent: 'Sensor' | 'Motor';
+  agent: 'Sensor' | 'Motor' | 'Fertilizer';
   message: string;
   type: 'info' | 'action' | 'alert' | 'success';
   timestamp: string;
 }
 
-export function AgenticAutomation() {
+interface AgenticAutomationProps {
+  onSyncToForm?: (data: Partial<SoilData>) => void;
+}
+
+export function AgenticAutomation({ onSyncToForm }: AgenticAutomationProps) {
   const [moisture, setMoisture] = useState(45);
+  const [nutrients, setNutrients] = useState(80);
   const [motorStatus, setMotorStatus] = useState<'OFF' | 'ON'>('OFF');
+  const [fertStatus, setFertStatus] = useState<'IDLE' | 'DISPENSING'>('IDLE');
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const addLog = (agent: 'Sensor' | 'Motor', message: string, type: AgentLog['type']) => {
+  const handleSync = () => {
+    if (onSyncToForm) {
+      onSyncToForm({ 
+        moisture: Math.round(moisture),
+        n: Math.round(nutrients * 5), // Mapping 0-100 to N-NPK scale
+      });
+      toast.success(`Agent synced sensor data to analysis form!`);
+      addLog('Sensor', `Soil health packet (Moisture + Nutrients) dispatched to Core.`, 'info');
+    }
+  };
+
+  const addLog = (agent: AgentLog['agent'], message: string, type: AgentLog['type']) => {
     const newLog: AgentLog = {
       id: Math.random().toString(36).substring(7),
       agent,
@@ -26,56 +45,61 @@ export function AgenticAutomation() {
       type,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
-    setLogs(prev => [newLog, ...prev].slice(0, 10));
+    setLogs(prev => [newLog, ...prev].slice(0, 15));
   };
 
-  // Agentic Loop
+  // Agentic Loop (Environment simulation)
   useEffect(() => {
     if (!isAutoMode) return;
 
     const interval = setInterval(() => {
-      // 1. Sensor Agent monitors moisture
-      setMoisture(prev => {
-        if (motorStatus === 'ON') {
-          const next = Math.min(prev + 2, 85);
-          return next;
-        } else {
-          const next = Math.max(prev - 0.5, 15);
-          return next;
-        }
-      });
+      // Simulation: Natural depletion
+      setMoisture(prev => (motorStatus === 'ON' ? Math.min(prev + 2, 85) : Math.max(prev - 0.4, 15)));
+      setNutrients(prev => (fertStatus === 'DISPENSING' ? Math.min(prev + 1.5, 95) : Math.max(prev - 0.2, 20)));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isAutoMode, motorStatus]);
+  }, [isAutoMode, motorStatus, fertStatus]);
 
-  // Agent Intelligence Layer
+  // Agent Intelligence Layers
   useEffect(() => {
     if (!isAutoMode) return;
 
-    // Sensor Agent Reasoning
+    // 1. Irrigation Logic
     if (moisture < 30 && motorStatus === 'OFF') {
-      addLog('Sensor', `Critical moisture detected: ${moisture.toFixed(1)}%. Initiating request to Motor Agent.`, 'alert');
-      
-      // Artificial delay to simulate "passing information"
+      addLog('Sensor', `Low moisture (${moisture.toFixed(1)}%). Requesting irrigation.`, 'alert');
       setTimeout(() => {
-        addLog('Motor', `Signal received from Sensor Agent. Analyzing soil requirements...`, 'info');
-        setTimeout(() => {
-          addLog('Motor', `Decision: Irrigation required. Activating Motor.`, 'action');
-          setMotorStatus('ON');
-        }, 1500);
+        addLog('Motor', `Irrigation request approved. Activating Pump.`, 'action');
+        setMotorStatus('ON');
       }, 1000);
     }
-
     if (moisture > 75 && motorStatus === 'ON') {
-      addLog('Sensor', `Optimal moisture reached: ${moisture.toFixed(1)}%. Signaling Motor Agent to standby.`, 'success');
-      
+      addLog('Sensor', `Hydration optimal. Standby signal sent to Motor.`, 'success');
       setTimeout(() => {
-        addLog('Motor', `Threshold met. Deactivating Motor to prevent over-irrigation.`, 'action');
+        addLog('Motor', `Deactivating Pump. Standing by.`, 'action');
         setMotorStatus('OFF');
       }, 1000);
     }
-  }, [moisture, isAutoMode, motorStatus]);
+
+    // 2. Fertilizer Logic (New Feature)
+    if (nutrients < 40 && fertStatus === 'IDLE') {
+      addLog('Sensor', `Nutrient deficiency detected (${nutrients.toFixed(1)}%). Messaging Fertilizer Agent.`, 'alert');
+      setTimeout(() => {
+        addLog('Fertilizer', `Soil analysis received. Formulating NPK dosage override.`, 'info');
+        setTimeout(() => {
+          addLog('Fertilizer', `Dispensing nutrient solution. Status: ACTIVE.`, 'action');
+          setFertStatus('DISPENSING');
+        }, 1500);
+      }, 1000);
+    }
+    if (nutrients > 90 && fertStatus === 'DISPENSING') {
+      addLog('Sensor', `Soil fertility saturation achieved. Signaling shutdown.`, 'success');
+      setTimeout(() => {
+        addLog('Fertilizer', `Dispense complete. Reservoir closed.`, 'action');
+        setFertStatus('IDLE');
+      }, 1000);
+    }
+  }, [moisture, nutrients, isAutoMode, motorStatus, fertStatus]);
 
   return (
     <div className="space-y-6">
@@ -115,98 +139,113 @@ export function AgenticAutomation() {
                 <Droplets className="w-6 h-6 text-blue-500" />
               </div>
               <div>
-                <h3 className="font-bold text-olive-900">Virtual Sensor Agent</h3>
-                <p className="text-[10px] uppercase tracking-wider text-olive-400 font-mono">Monitoring Real-time</p>
+                <h3 className="font-bold text-olive-900">Health Sensor Agent</h3>
+                <p className="text-[10px] uppercase tracking-wider text-olive-400 font-mono">Bimodal Monitoring</p>
               </div>
             </div>
 
-            <div className="flex items-end gap-2 mb-4">
-              <span className="text-5xl font-mono font-medium text-olive-950 tracking-tighter">
-                {moisture.toFixed(1)}
-              </span>
-              <span className="text-xl font-medium text-olive-400 pb-1">%</span>
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-end justify-between mb-2">
+                  <span className="text-[10px] uppercase font-bold text-olive-400 tracking-wider">Moisture</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-mono font-medium text-olive-950 tracking-tighter">
+                      {moisture.toFixed(1)}
+                    </span>
+                    <span className="text-xs font-medium text-olive-400 font-mono">%</span>
+                  </div>
+                </div>
+                <div className="w-full bg-olive-50 h-2 rounded-full overflow-hidden">
+                  <motion.div 
+                    className={cn("h-full transition-colors", 
+                      moisture < 30 ? "bg-red-400" : moisture > 75 ? "bg-blue-400" : "bg-green-400"
+                    )}
+                    animate={{ width: `${moisture}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-end justify-between mb-2">
+                  <span className="text-[10px] uppercase font-bold text-olive-400 tracking-wider">Nutrient Index</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-mono font-medium text-olive-950 tracking-tighter">
+                      {nutrients.toFixed(1)}
+                    </span>
+                    <span className="text-xs font-medium text-olive-400 font-mono">/100</span>
+                  </div>
+                </div>
+                <div className="w-full bg-olive-50 h-2 rounded-full overflow-hidden">
+                  <motion.div 
+                    className={cn("h-full transition-colors", 
+                      nutrients < 40 ? "bg-orange-400" : "bg-emerald-400"
+                    )}
+                    animate={{ width: `${nutrients}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="w-full bg-olive-50 h-3 rounded-full overflow-hidden">
-              <motion.div 
-                className={cn("h-full transition-colors", 
-                  moisture < 30 ? "bg-red-400" : moisture > 75 ? "bg-blue-400" : "bg-green-400"
-                )}
-                initial={{ width: 0 }}
-                animate={{ width: `${moisture}%` }}
-              />
-            </div>
+            <button 
+              onClick={handleSync}
+              className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-wider bg-olive-50 text-olive-600 border border-olive-100 rounded-xl hover:bg-olive-100 transition-colors"
+            >
+              <Share2 className="w-3 h-3" />
+              Sync Sensor Packet
+            </button>
             
-            <p className="mt-4 text-xs text-olive-500 leading-relaxed italic">
-              "Observing soil water content. Ready to signal motor agent if thresholds break."
+            <p className="mt-4 text-[10px] text-olive-500 leading-relaxed italic text-center">
+              "Observing soil health vectors. Multi-agent communication active."
             </p>
           </div>
 
           {/* Communication Pipe */}
-          <div className="flex flex-col items-center justify-center py-2 h-12">
+          <div className="flex flex-col items-center justify-center py-2 min-h-[60px]">
             <AnimatePresence>
               {isAutoMode && (
                 <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex flex-col items-center"
+                  className="flex flex-col items-center relative"
                 >
-                  <div className="w-px h-6 bg-dashed border-l-2 border-dashed border-olive-300" />
-                  <Zap className={cn("w-4 h-4 my-1", motorStatus === 'ON' ? "text-amber-500" : "text-olive-300")} />
+                  <div className="w-px h-12 bg-dashed border-l-2 border-dashed border-olive-300" />
+                  <div className="absolute top-1/2 -translate-y-1/2 flex flex-col gap-1">
+                    <Zap className={cn("w-4 h-4", motorStatus === 'ON' ? "text-amber-500 animate-bounce" : "text-olive-200")} />
+                    <Activity className={cn("w-4 h-4", fertStatus === 'DISPENSING' ? "text-emerald-500 animate-pulse" : "text-olive-200")} />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Motor Agent Card */}
-          <div className="bg-white border-2 border-olive-100 rounded-3xl p-6 shadow-sm hover:border-olive-200 transition-colors relative overflow-hidden group">
-             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Power className="w-24 h-24 text-olive-900" />
-            </div>
-
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 rounded-xl">
-                  <Zap className="w-6 h-6 text-amber-500" />
+          <div className="grid grid-cols-2 gap-4">
+            {/* Motor Agent Card */}
+            <div className="bg-white border-2 border-olive-100 rounded-3xl p-4 shadow-sm relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-1.5 bg-amber-50 rounded-lg">
+                  <Zap className="w-4 h-4 text-amber-500" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-olive-900">Motor Control Agent</h3>
-                  <p className="text-[10px] uppercase tracking-wider text-olive-400 font-mono">Actuator Interface</p>
-                </div>
+                <div className={cn("w-2 h-2 rounded-full", motorStatus === 'ON' ? "bg-green-500" : "bg-gray-300")} />
               </div>
-              <div className={cn("p-2 rounded-full", motorStatus === 'ON' ? "bg-green-100 animate-pulse" : "bg-gray-100")}>
-                <Power className={cn("w-4 h-4", motorStatus === 'ON' ? "text-green-600" : "text-gray-400")} />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xs font-semibold text-olive-400 uppercase tracking-widest">Pump Status</span>
-              <span className={cn("text-2xl font-mono font-bold tracking-tight", 
-                motorStatus === 'ON' ? "text-green-600" : "text-olive-900")}>
+              <h4 className="text-[10px] font-bold text-olive-400 uppercase tracking-widest mb-1">Irrigator</h4>
+              <p className={cn("text-lg font-mono font-bold", motorStatus === 'ON' ? "text-green-600" : "text-olive-900")}>
                 {motorStatus}
-              </span>
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => setMotorStatus('ON')}
-                disabled={isAutoMode}
-                className={cn("py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all",
-                  motorStatus === 'ON' ? "bg-green-500 border-green-600 text-white" : "border-olive-200 text-olive-400 hover:border-olive-400"
-                )}
-              >
-                Manual ON
-              </button>
-              <button 
-                onClick={() => setMotorStatus('OFF')}
-                disabled={isAutoMode}
-                className={cn("py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all",
-                  motorStatus === 'OFF' ? "bg-gray-500 border-gray-600 text-white" : "border-olive-200 text-olive-400 hover:border-olive-400"
-                )}
-              >
-                Manual OFF
-              </button>
+            {/* Fertilizer Agent Card */}
+            <div className="bg-white border-2 border-olive-100 rounded-3xl p-4 shadow-sm relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-1.5 bg-emerald-50 rounded-lg">
+                  <Activity className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className={cn("w-2 h-2 rounded-full", fertStatus === 'DISPENSING' ? "bg-emerald-500 animate-pulse" : "bg-gray-300")} />
+              </div>
+              <h4 className="text-[10px] font-bold text-olive-400 uppercase tracking-widest mb-1">Fertilizer</h4>
+              <p className={cn("text-lg font-mono font-bold", fertStatus === 'DISPENSING' ? "text-emerald-600 italic" : "text-olive-900")}>
+                {fertStatus === 'DISPENSING' ? 'ACTIVE' : 'IDLE'}
+              </p>
             </div>
           </div>
         </div>
