@@ -6,6 +6,7 @@ import { AboutICAR } from '@/components/AboutICAR';
 import { Resources } from '@/components/Resources';
 import { Support } from '@/components/Support';
 import { ChatBot } from '@/components/ChatBot';
+import { AgenticAutomation } from '@/components/AgenticAutomation';
 import { FertilizerCalculator } from '@/components/FertilizerCalculator';
 import { SoilData, AnalysisResult } from '@/types';
 import { analyzeSoil } from '@/lib/gemini';
@@ -193,6 +194,11 @@ function HomePage() {
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Agentic AI Automation Section */}
+        <section className="mt-20 border-t border-olive-100 pt-20">
+          <AgenticAutomation />
+        </section>
       </main>
 
       {/* Footer */}
